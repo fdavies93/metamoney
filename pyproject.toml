@@ -1,0 +1,28 @@
+[project]
+name = "metamoney"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "Frank Davies",email = "fdavies93@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "click (>=8.1.8,<9.0.0)"
+]
+
+[project.scripts]
+metamoney = "metamoney.cli:main"
+
+[tool.poetry]
+packages = [{include = "metamoney", from = "src"}]
+
+
+[tool.poetry.group.dev.dependencies]
+black = "^25.1.0"
+pylint = "^3.3.6"
+isort = "^6.0.1"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
