@@ -1,17 +1,30 @@
 import csv
 import logging
 import sys
+from abc import ABC
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
 from enum import StrEnum
 from pathlib import Path
 from time import strftime
-from typing import Callable, Literal, TextIO
+from typing import Callable, Literal, Optional, TextIO
 
 import click
+import yaml
 
 logging.basicConfig(level=logging.DEBUG)
+
+
+@dataclass
+class MappingCondition:
+    field_matches: str
+
+
+@dataclass
+class Mapping:
+    when: MappingCondition
+    remap: dict[str, str]
 
 
 @dataclass
@@ -217,6 +230,49 @@ def write_generic_to_beancount(
         write_one_generic_to_beancount(logger, output_stream, transaction)
 
 
+def pascal_to_snake(pascal: str) -> str:
+    snake = ""
+    for i, char in enumerate(pascal):
+        if ord(char) >= ord("A") and ord(char) <= ord("Z"):
+            if i > 0:
+                snake += "_"
+            snake += char.lower()
+            continue
+        snake += char
+    return snake
+
+
+def load_map(logger: logging.Logger, path: Path) -> dict[str, list[Mapping]]:
+    output_map: dict[str, list[Mapping]] = {}
+    if not path.exists():
+        raise ValueError()
+    with path.open("r") as f:
+        loaded_map: dict = yaml.load(f, yaml.Loader)
+
+    logger.debug(loaded_map)
+    # May be worth switching to Pydantic etc for better handling in the future
+    # but this version is already implemented, so whatever
+    for k, v in loaded_map.items():
+        # v is a list of mappings
+        output_list: list[Mapping] = []
+        for mapping in v:
+            remap: dict = mapping["Remap"]
+            output_remap = {}
+            for k1, v1 in remap.items():
+                output_remap[pascal_to_snake(k1)] = v1
+
+            field_matches = mapping["When"].get("FieldMatches")
+            field_matches[0] = pascal_to_snake(field_matches[0])
+
+            output_mapping = Mapping(
+                MappingCondition(field_matches=field_matches),
+                remap=output_remap,
+            )
+            output_list.append(output_mapping)
+        output_map[pascal_to_snake(k)] = output_list
+    return output_map
+
+
 @click.command
 @click.option("--input-path", "-i", type=Path)
 @click.option("--output-path", "-o", type=Path)
@@ -226,6 +282,8 @@ def write_generic_to_beancount(
 @click.option("--quiet", "-q", count=True)
 @click.option("--verbose", "-v", count=True)
 @click.option("--overwrite", "-w", is_flag=True, default=False)
+@click.option("--map-path", "-m", type=Path)
+@click.option("--dry-run", is_flag=True, default=False)
 def main(
     input_path: Path | None,
     output_path: Path | None,
@@ -235,6 +293,8 @@ def main(
     verbose: int,
     quiet: int,
     overwrite: bool,
+    map_path: Path | None,
+    dry_run: bool,
 ):
 
     input_formats = {"cathay": {"csv": read_cathay_csv}}
@@ -258,9 +318,20 @@ def main(
 
     generic_transactions = sorted(generic_transactions, key=lambda t: t.timestamp)
 
-    logger.debug(generic_transactions)
+    # post-processing steps
 
-    write_generic_to_beancount(logger, output_stream, generic_transactions)
+    # sort
+
+    # remap
+    if map_path is not None:
+        map_data = load_map(logger, map_path)
+        logger.debug(map_data)
+        # generic_transactions = process_map(logger, map_data, generic_transactions)
+
+    # logger.debug(generic_transactions)
+
+    if not dry_run:
+        write_generic_to_beancount(logger, output_stream, generic_transactions)
 
     close_streams(input_stream, output_stream)
 
