@@ -1,7 +1,9 @@
 import csv
 import logging
+import re
 import sys
 from abc import ABC
+from copy import deepcopy
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
@@ -18,7 +20,7 @@ logging.basicConfig(level=logging.DEBUG)
 
 @dataclass
 class MappingCondition:
-    field_matches: str
+    field_matches: tuple[str, str] | None
 
 
 @dataclass
@@ -49,6 +51,7 @@ class GenericTransaction:
     currency: str
     credit_account: str
     debit_account: str
+    institution: str
 
 
 def check_input_format(
@@ -193,6 +196,7 @@ def convert_one_cathay_to_generic(
         currency="NTD",
         credit_account=credit_account,
         debit_account=debit_account,
+        institution="cathay",
     )
 
     logger.debug(generic)
@@ -265,12 +269,66 @@ def load_map(logger: logging.Logger, path: Path) -> dict[str, list[Mapping]]:
             field_matches[0] = pascal_to_snake(field_matches[0])
 
             output_mapping = Mapping(
-                MappingCondition(field_matches=field_matches),
+                MappingCondition(field_matches=tuple(field_matches)),
                 remap=output_remap,
             )
             output_list.append(output_mapping)
         output_map[pascal_to_snake(k)] = output_list
     return output_map
+
+
+def get_mapping_result(
+    logger: logging.Logger, mapping: Mapping, transaction: GenericTransaction
+) -> GenericTransaction:
+    output_transaction = deepcopy(transaction)
+    for field, new_value in mapping.remap.items():
+        setattr(output_transaction, field, new_value)
+    return output_transaction
+
+
+def check_mapping_applies(
+    logger: logging.Logger, mapping: Mapping, transaction: GenericTransaction
+) -> bool:
+    if mapping.when.field_matches is None:
+        return False
+    target_field, match_pattern = mapping.when.field_matches
+    target_field_value = getattr(transaction, target_field)
+    if re.match(match_pattern, target_field_value):
+        return True
+    return False
+
+
+def process_one_mapping(
+    logger: logging.Logger,
+    mappings: dict[str, list[Mapping]],
+    transaction: GenericTransaction,
+) -> GenericTransaction:
+    working_transaction = transaction
+    if transaction.institution in mappings:
+        for mapping in mappings[transaction.institution]:
+            if check_mapping_applies(logger, mapping, working_transaction):
+                working_transaction = get_mapping_result(
+                    logger, mapping, working_transaction
+                )
+    all_mappings: list[Mapping] | None = mappings.get("all")
+    if all_mappings is not None:
+        for mapping in all_mappings:
+            if check_mapping_applies(logger, mapping, working_transaction):
+                working_transaction = get_mapping_result(
+                    logger, mapping, working_transaction
+                )
+    return working_transaction
+
+
+def process_map(
+    logger: logging.Logger,
+    mappings: dict[str, list[Mapping]],
+    transactions: list[GenericTransaction],
+) -> list[GenericTransaction]:
+    return [
+        process_one_mapping(logger, mappings, transaction)
+        for transaction in transactions
+    ]
 
 
 @click.command
@@ -326,7 +384,7 @@ def main(
     if map_path is not None:
         map_data = load_map(logger, map_path)
         logger.debug(map_data)
-        # generic_transactions = process_map(logger, map_data, generic_transactions)
+        generic_transactions = process_map(logger, map_data, generic_transactions)
 
     # logger.debug(generic_transactions)
 
