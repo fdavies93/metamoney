@@ -359,6 +359,8 @@ def main(
 
     convert_to_generic = {"cathay": convert_cathay_to_generic}
 
+    output_formats = {"beancount": write_generic_to_beancount}
+
     logger = initialize_logger(verbose > 0, quiet > 0)
     input_stream, output_stream = initialize_streams(input_path, output_path, overwrite)
 
@@ -389,7 +391,7 @@ def main(
     # logger.debug(generic_transactions)
 
     if not dry_run:
-        write_generic_to_beancount(logger, output_stream, generic_transactions)
+        output_formats[output_format](logger, output_stream, generic_transactions)
 
     close_streams(input_stream, output_stream)
 
