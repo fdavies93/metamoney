@@ -11,6 +11,7 @@ from enum import StrEnum
 from pathlib import Path
 from time import strftime
 from typing import Callable, Literal, Optional, TextIO
+from metamoney.utils import pascal_to_snake
 
 import click
 import yaml
@@ -19,9 +20,20 @@ logging.basicConfig(level=logging.DEBUG)
 
 
 @dataclass
-class MappingCondition:
+class FieldMatchesCondition:
     field_matches: tuple[str, str] | None
 
+@dataclass
+class AllOfCondition:
+    all_of: list["MappingCondition"]
+
+@dataclass
+class AnyOfCondition:
+    any_of: list["MappingCondition"]
+
+type CompoundCondition = AllOfCondition | AnyOfCondition
+
+type MappingCondition = FieldMatchesCondition | CompoundCondition
 
 @dataclass
 class Mapping:
@@ -233,19 +245,6 @@ def write_generic_to_beancount(
     for transaction in transactions:
         write_one_generic_to_beancount(logger, output_stream, transaction)
 
-
-def pascal_to_snake(pascal: str) -> str:
-    snake = ""
-    for i, char in enumerate(pascal):
-        if ord(char) >= ord("A") and ord(char) <= ord("Z"):
-            if i > 0:
-                snake += "_"
-            snake += char.lower()
-            continue
-        snake += char
-    return snake
-
-
 def load_map(logger: logging.Logger, path: Path) -> dict[str, list[Mapping]]:
     output_map: dict[str, list[Mapping]] = {}
     if not path.exists():
@@ -269,7 +268,7 @@ def load_map(logger: logging.Logger, path: Path) -> dict[str, list[Mapping]]:
             field_matches[0] = pascal_to_snake(field_matches[0])
 
             output_mapping = Mapping(
-                MappingCondition(field_matches=tuple(field_matches)),
+                FieldMatchesCondition(field_matches=tuple(field_matches)),
                 remap=output_remap,
             )
             output_list.append(output_mapping)
