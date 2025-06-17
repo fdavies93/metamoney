@@ -24,17 +24,6 @@ import yaml
 
 logging.basicConfig(level=logging.DEBUG)
 
-def check_input_format(
-    input_formats: dict[str, dict[str, Callable]], institution: str, format: str
-) -> bool:
-    if institution not in input_formats:
-        return False
-    formats = input_formats[institution]
-    if format not in formats:
-        return False
-    return True
-
-
 def initialize_logger(verbose: bool, quiet: bool) -> logging.Logger:
     if verbose and quiet:
         raise ValueError("Output cannot be both verbose and quiet.")
