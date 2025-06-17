@@ -13,7 +13,7 @@ dependencies = [
 ]
 
 [project.scripts]
-metamoney = "metamoney.cli:main"
+metamoney = "metamoney.cli:metamoney"
 
 [tool.poetry]
 packages = [{include = "metamoney", from = "src"}]

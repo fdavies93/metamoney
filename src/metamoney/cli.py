@@ -10,61 +10,19 @@ from decimal import Decimal
 from enum import StrEnum
 from pathlib import Path
 from time import strftime
-from typing import Callable, Literal, Optional, TextIO
+from typing import Callable, Literal, TextIO
+from metamoney.importers import get_importer, CathayCsvImporter
+from metamoney.models.data_sources import DataSource, DataSourceFormat, DataSourceInstitution
 from metamoney.utils import pascal_to_snake
+from metamoney.models.config import StreamInfo
+from metamoney.models.transactions import GenericTransaction, CathayTransaction
+from metamoney.models.mappings import Mapping
+from typing import Sequence
 
 import click
 import yaml
 
 logging.basicConfig(level=logging.DEBUG)
-
-
-@dataclass
-class FieldMatchesCondition:
-    field_matches: tuple[str, str] | None
-
-@dataclass
-class AllOfCondition:
-    all_of: list["MappingCondition"]
-
-@dataclass
-class AnyOfCondition:
-    any_of: list["MappingCondition"]
-
-type CompoundCondition = AllOfCondition | AnyOfCondition
-
-type MappingCondition = FieldMatchesCondition | CompoundCondition
-
-@dataclass
-class Mapping:
-    when: MappingCondition
-    remap: dict[str, str]
-
-
-@dataclass
-class StreamInfo:
-    stream: TextIO
-    name: str
-
-
-@dataclass
-class GenericTransaction:
-    """
-    Note that this is NOT a ledger entry; a ledger entry would contain multiple
-    transactions. However making an algorithm to truly combine transactions into
-    ledger entries is a significant challenge and unnecessary except for very
-    high volumes.
-    """
-
-    timestamp: datetime
-    payee: str
-    description: str
-    amount: Decimal
-    currency: str
-    credit_account: str
-    debit_account: str
-    institution: str
-
 
 def check_input_format(
     input_formats: dict[str, dict[str, Callable]], institution: str, format: str
@@ -120,69 +78,6 @@ def close_streams(input_stream: StreamInfo, output_stream: StreamInfo):
         input_stream.stream.close()
     if output_stream != sys.stdout:
         output_stream.stream.close()
-
-
-@dataclass
-class CathayTransaction:
-    transaction_date: datetime
-    billing_date: datetime
-    description: str
-    withdraw: Decimal
-    deposit: Decimal
-    # balance: Decimal - but this isn't very useful data
-    transaction_data: str
-    notes: str
-
-
-def read_cathay_csv_row(row: list[str]) -> CathayTransaction:
-    transaction_date = datetime.strptime(row[0], "%Y/%m/%d\n%H:%M")
-    billing_date = datetime.strptime(row[1], "%Y/%m/%d")
-    description = row[2].strip()
-
-    clean_withdraw = row[3].replace(",", "").replace("−", "")
-    if len(clean_withdraw) > 0:
-        withdraw = Decimal(clean_withdraw)
-    else:
-        withdraw = Decimal(0)
-
-    clean_deposit = row[4].replace(",", "").replace("−", "")
-    if len(clean_deposit) > 0:
-        deposit = Decimal(clean_deposit)
-    else:
-        deposit = Decimal(0)
-    # no balance as it's not part of the transaction
-    transaction_data = row[6]
-    notes = row[7].strip()
-    return CathayTransaction(
-        transaction_date,
-        billing_date,
-        description,
-        withdraw,
-        deposit,
-        transaction_data,
-        notes,
-    )
-
-
-def read_cathay_csv(
-    logger: logging.Logger, input_stream: StreamInfo
-) -> list[CathayTransaction]:
-    reader = csv.reader(input_stream.stream)
-    transactions = []
-    count = 0
-    for i, row in enumerate(reader):
-        count += 1
-        try:
-            logger.debug(row)
-            transactions.append(read_cathay_csv_row(row))
-        except Exception as e:
-            logger.debug(e)
-            logger.info(
-                f"Failed to read row {i} of {input_stream.name} in read_cathay_csv."
-            )
-    logger.debug(f"{len(transactions)} valid transactions found in {count} rows.")
-    return transactions
-
 
 def convert_one_cathay_to_generic(
     logger: logging.Logger, transaction: CathayTransaction
@@ -330,68 +225,113 @@ def process_map(
     ]
 
 
-@click.command
-@click.option("--input-path", "-i", type=Path)
-@click.option("--output-path", "-o", type=Path)
-@click.option("--institution", "-I", type=click.Choice(["cathay"]), required=True)
-@click.option("--input-format", default="csv")
-@click.option("--output-format", default="beancount")
-@click.option("--quiet", "-q", count=True)
-@click.option("--verbose", "-v", count=True)
-@click.option("--overwrite", "-w", is_flag=True, default=False)
-@click.option("--map-path", "-m", type=Path)
-@click.option("--dry-run", is_flag=True, default=False)
-def main(
-    input_path: Path | None,
-    output_path: Path | None,
-    institution: Literal["cathay"],
-    input_format: Literal["csv"],
-    output_format: Literal["beancount"],
-    verbose: int,
-    quiet: int,
-    overwrite: bool,
-    map_path: Path | None,
-    dry_run: bool,
+@click.group()
+def metamoney():
+    pass
+
+@metamoney.command()
+# this should be sourced from the names set in the importers
+@click.option("--institution", type=click.Choice(list(DataSourceInstitution)), required=True, help="The institution that you want to import data from.")
+# either stdin, remote, or file path
+@click.option("--source", type=str, required=True, help="The data source to import from. Valid choices are stdin, remote, or a file path.")
+# no default, because we will infer it from the source and/or institution
+@click.option("--input-format", type=click.Choice(list(DataSourceFormat)))
+@click.option("--output-format", type=click.Choice(("beancount",)))
+def transactions(
+    institution: DataSourceInstitution,
+    source: str,
+    input_format: DataSourceFormat,
+    output_format: str
 ):
+    importer = get_importer(institution, input_format)
 
-    input_formats = {"cathay": {"csv": read_cathay_csv}}
+    generic_transactions: Sequence[GenericTransaction]
 
-    convert_to_generic = {"cathay": convert_cathay_to_generic}
-
-    logger = initialize_logger(verbose > 0, quiet > 0)
-    input_stream, output_stream = initialize_streams(input_path, output_path, overwrite)
-
-    if not check_input_format(input_formats, institution, input_format):
-        logger.error(
-            f"No importer exists for institution {institution} and input format {input_format}"
+    if source == "remote":
+        # needs account details
+        # generic_transactions = importer.ingest()
+        data_source = importer.retrieve()
+        raise NotImplementedError()
+    elif source == "stdin":
+        stream = StreamInfo(sys.stdin, "stdin")
+        data_source = DataSource(institution, input_format, stream)
+    else:
+        source_as_path: Path = Path(source)
+        if not (source_as_path.exists() and source_as_path.is_file()):
+            print("--source must be 'remote', 'stdin', or a valid path to a file.")
+            exit(1)
+        stream = StreamInfo(
+            source_as_path.open(),
+            str(source_as_path.resolve())
         )
-        sys.exit(1)
+        data_source = DataSource(institution, input_format, stream)
 
-    logger.debug(f"Converting from {input_stream.name} to {output_stream.name}.")
+    print(data_source.stream.stream.read())
 
-    transactions = input_formats[institution][input_format](logger, input_stream)
-
-    generic_transactions = convert_to_generic[institution](logger, transactions)
-
-    generic_transactions = sorted(generic_transactions, key=lambda t: t.timestamp)
-
-    # post-processing steps
-
-    # sort
-
-    # remap
-    if map_path is not None:
-        map_data = load_map(logger, map_path)
-        logger.debug(map_data)
-        generic_transactions = process_map(logger, map_data, generic_transactions)
-
-    # logger.debug(generic_transactions)
-
-    if not dry_run:
-        write_generic_to_beancount(logger, output_stream, generic_transactions)
-
-    close_streams(input_stream, output_stream)
+# @click.command
+# @click.option("--input-path", "-i", type=Path) # this doesn't need to be a path
+# @click.option("--output-path", "-o", type=Path)
+# @click.option("--institution", "-I", type=click.Choice(["cathay"]), required=True)
+# @click.option("--input-format", default="csv")
+# @click.option("--output-format", default="beancount")
+# @click.option("--quiet", "-q", count=True)
+# @click.option("--verbose", "-v", count=True)
+# @click.option("--overwrite", "-w", is_flag=True, default=False)
+# @click.option("--map-path", "-m", type=Path)
+# @click.option("--dry-run", is_flag=True, default=False)
+# def main(
+#     input_path: Path | None,
+#     output_path: Path | None,
+#     institution: Literal["cathay_tw"],
+#     input_format: Literal["csv"],
+#     output_format: Literal["beancount"],
+#     verbose: int,
+#     quiet: int,
+#     overwrite: bool,
+#     map_path: Path | None,
+#     dry_run: bool,
+# ):
+#
+#     logger = initialize_logger(verbose > 0, quiet > 0)
+#     input_stream, output_stream = initialize_streams(input_path, output_path, overwrite)
+#
+#     importer = get_importer(DataSourceInstitution(institution))
+#
+#     # if not check_input_format(input_formats, institution, input_format):
+#     #     logger.error(
+#     #         f"No importer exists for institution {institution} and input format {input_format}"
+#     #     )
+#     #     sys.exit(1)
+#
+#     logger.debug(f"Converting from {input_stream.name} to {output_stream.name}.")
+#
+#     generic_transactions = importer.ingest()
+#
+#     # transactions = input_formats[institution][input_format](logger, input_stream)
+#     #
+#     # generic_transactions = convert_to_generic[institution](logger, transactions)
+#     #
+#     # generic_transactions = sorted(generic_transactions, key=lambda t: t.timestamp)
+#
+#     # post-processing steps
+#
+#     # sort
+#
+#     # needs something like a PostProcessingWorkflow object
+#     # remap
+#     if map_path is not None:
+#         map_data = load_map(logger, map_path)
+#         logger.debug(map_data)
+#         generic_transactions = process_map(logger, map_data, generic_transactions)
+#
+#     # logger.debug(generic_transactions)
+#
+#     # needs exporter object
+#     if not dry_run:
+#         write_generic_to_beancount(logger, output_stream, generic_transactions)
+#
+#     close_streams(input_stream, output_stream)
 
 
 if __name__ == "__main__":
-    main()
+    metamoney()
