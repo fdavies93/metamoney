@@ -79,47 +79,6 @@ def close_streams(input_stream: StreamInfo, output_stream: StreamInfo):
     if output_stream != sys.stdout:
         output_stream.stream.close()
 
-def convert_one_cathay_to_generic(
-    logger: logging.Logger, transaction: CathayTransaction
-) -> GenericTransaction:
-    if transaction.deposit > 0:
-        amount = transaction.deposit
-        credit_account = "Assets:Cathay"
-        debit_account = "Income:Unknown"
-    elif transaction.withdraw > 0:
-        amount = transaction.withdraw
-        credit_account = "Expenses:Unknown"
-        debit_account = "Assets:Cathay"
-    else:
-        amount = Decimal(0)
-        credit_account = "Expenses:Unknown"
-        debit_account = "Income:Unknown"
-
-    generic = GenericTransaction(
-        timestamp=transaction.transaction_date,
-        payee=transaction.notes,
-        description=transaction.description,
-        amount=amount,
-        currency="NTD",
-        credit_account=credit_account,
-        debit_account=debit_account,
-        institution="cathay",
-    )
-
-    logger.debug(generic)
-
-    return generic
-
-
-def convert_cathay_to_generic(
-    logger: logging.Logger, transactions: list[CathayTransaction]
-) -> list[GenericTransaction]:
-    generics = []
-    for transaction in transactions:
-        generics.append(convert_one_cathay_to_generic(logger, transaction))
-    return generics
-
-
 def write_one_generic_to_beancount(
     logger: logging.Logger, output_stream: StreamInfo, transaction: GenericTransaction
 ):
@@ -235,26 +194,27 @@ def metamoney():
 # either stdin, remote, or file path
 @click.option("--source", type=str, required=True, help="The data source to import from. Valid choices are stdin, remote, or a file path.")
 # no default, because we will infer it from the source and/or institution
-@click.option("--input-format", type=click.Choice(list(DataSourceFormat)))
+@click.option("--input-format","input_format", type=click.Choice(list(DataSourceFormat)))
 @click.option("--output-format", type=click.Choice(("beancount",)))
 def transactions(
     institution: DataSourceInstitution,
     source: str,
-    input_format: DataSourceFormat,
-    output_format: str
+    input_format: DataSourceFormat | None,
+    output_format: str | None
 ):
-    importer = get_importer(institution, input_format)
+
+    input_type = DataSourceFormat.CSV
+
+    importer = get_importer(institution, input_type)
 
     generic_transactions: Sequence[GenericTransaction]
 
     if source == "remote":
-        # needs account details
-        # generic_transactions = importer.ingest()
+        raise NotImplementedError() 
         data_source = importer.retrieve()
-        raise NotImplementedError()
     elif source == "stdin":
         stream = StreamInfo(sys.stdin, "stdin")
-        data_source = DataSource(institution, input_format, stream)
+        data_source = DataSource(institution, input_type, stream)
     else:
         source_as_path: Path = Path(source)
         if not (source_as_path.exists() and source_as_path.is_file()):
@@ -264,9 +224,12 @@ def transactions(
             source_as_path.open(),
             str(source_as_path.resolve())
         )
-        data_source = DataSource(institution, input_format, stream)
+        data_source = DataSource(institution, input_type, stream)
 
-    print(data_source.stream.stream.read())
+    institution_transactions = importer.extract(data_source) 
+    generic_transactions = importer.transform(institution_transactions)
+    print(generic_transactions)
+    # print(data_source.stream.stream.read())
 
 # @click.command
 # @click.option("--input-path", "-i", type=Path) # this doesn't need to be a path
