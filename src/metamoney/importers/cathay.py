@@ -1,19 +1,35 @@
-from typing import Sequence
-from metamoney.importers.importer import AbstractImporter
+import csv
 import logging
+import sys
 from datetime import datetime
 from decimal import Decimal
+from typing import Sequence
 
-import csv
-from metamoney.models.data_sources import DataSource, DataSourceFormat
-from metamoney.models.transactions import CathayTransaction, GenericTransaction
+from metamoney.importers.importer import AbstractImporter
 from metamoney.models.config import StreamInfo
+from metamoney.models.data_sources import (
+    DataSource,
+    DataSourceFormat,
+    DataSourceInstitution,
+)
+from metamoney.models.transactions import CathayTransaction, GenericTransaction
+
 
 def get_importer(format: DataSourceFormat):
     match format:
         case DataSourceFormat.CSV:
             return CathayCsvImporter()
     raise ValueError()
+
+
+def clean_number_string(num_string: str) -> Decimal:
+    # Use the character code for − because it is NOT an ASCII dash
+    clean = num_string.replace(",", "").replace(chr(8722), "")
+    if len(clean) > 0:
+        return Decimal(clean)
+    else:
+        return Decimal(0)
+
 
 class CathayCsvImporter(AbstractImporter[CathayTransaction]):
     logger = logging.getLogger("CathayCsvImporter")
@@ -23,18 +39,12 @@ class CathayCsvImporter(AbstractImporter[CathayTransaction]):
         billing_date = datetime.strptime(row[1], "%Y/%m/%d")
         description = row[2].strip()
 
-        clean_withdraw = row[3].replace(",", "").replace("−", "")
-        if len(clean_withdraw) > 0:
-            withdraw = Decimal(clean_withdraw)
-        else:
-            withdraw = Decimal(0)
+        withdraw = clean_number_string(row[3])
 
-        clean_deposit = row[4].replace(",", "").replace("−", "")
-        if len(clean_deposit) > 0:
-            deposit = Decimal(clean_deposit)
-        else:
-            deposit = Decimal(0)
-        # no balance as it's not part of the transaction
+        deposit = clean_number_string(row[4])
+
+        balance = clean_number_string(row[5])
+
         transaction_data = row[6]
         notes = row[7].strip()
         return CathayTransaction(
@@ -43,13 +53,12 @@ class CathayCsvImporter(AbstractImporter[CathayTransaction]):
             description,
             withdraw,
             deposit,
+            balance,
             transaction_data,
             notes,
         )
 
-
-    def read_cathay_csv(self, input_stream: StreamInfo
-    ) -> list[CathayTransaction]:
+    def read_cathay_csv(self, input_stream: StreamInfo) -> list[CathayTransaction]:
         reader = csv.reader(input_stream.stream)
         transactions = []
         count = 0
@@ -63,42 +72,35 @@ class CathayCsvImporter(AbstractImporter[CathayTransaction]):
                 self.logger.info(
                     f"Failed to read row {i} of {input_stream.name} in read_cathay_csv."
                 )
-        self.logger.debug(f"{len(transactions)} valid transactions found in {count} rows.")
+        self.logger.debug(
+            f"{len(transactions)} valid transactions found in {count} rows."
+        )
         return transactions
 
-    
     def convert_one_cathay_to_generic(
-        self,
-        transaction: CathayTransaction
+        self, transaction: CathayTransaction
     ) -> GenericTransaction:
         if transaction.deposit > 0:
             amount = transaction.deposit
-            credit_account = "Assets:Cathay"
-            debit_account = "Income:Unknown"
         elif transaction.withdraw > 0:
-            amount = transaction.withdraw
-            credit_account = "Expenses:Unknown"
-            debit_account = "Assets:Cathay"
+            amount = -transaction.withdraw
         else:
             amount = Decimal(0)
-            credit_account = "Expenses:Unknown"
-            debit_account = "Income:Unknown"
 
         generic = GenericTransaction(
             timestamp=transaction.transaction_date,
             payee=transaction.notes,
             description=transaction.description,
             amount=amount,
+            balance=transaction.balance,
             currency="NTD",
-            credit_account=credit_account,
-            debit_account=debit_account,
-            institution="cathay",
+            account="Assets:Checking:Cathay",
+            institution=DataSourceInstitution.CATHAY_BANK_TW,
         )
 
         self.logger.debug(generic)
 
         return generic
-
 
     def convert_cathay_to_generic(
         self, transactions: Sequence[CathayTransaction]
@@ -106,14 +108,15 @@ class CathayCsvImporter(AbstractImporter[CathayTransaction]):
         generics = []
         for transaction in transactions:
             generics.append(self.convert_one_cathay_to_generic(transaction))
-        return generics
-
+        return generics[::-1]
 
     def retrieve(self) -> DataSource:
-        pass
+        raise NotImplementedError()
 
     def extract(self, data_source: DataSource) -> list[CathayTransaction]:
         return self.read_cathay_csv(data_source.stream)
 
-    def transform(self, source_transactions: Sequence[CathayTransaction]) -> list[GenericTransaction]:
+    def transform(
+        self, source_transactions: Sequence[CathayTransaction]
+    ) -> list[GenericTransaction]:
         return self.convert_cathay_to_generic(source_transactions)

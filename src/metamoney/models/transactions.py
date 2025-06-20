@@ -1,29 +1,32 @@
-from decimal import Decimal
-from datetime import datetime
 from abc import ABC
 from dataclasses import dataclass
+from datetime import datetime
+from decimal import Decimal
+
 
 class AbstractTransaction(ABC):
     pass
 
 
+# TODO: Simplify the Transaction class and add a JournalEntry class
+# for recording the relationship between two transactions
 @dataclass
 class GenericTransaction(AbstractTransaction):
-    """
-    Note that this is NOT a ledger entry; a ledger entry would contain multiple
-    transactions. However making an algorithm to truly combine transactions into
-    ledger entries is a significant challenge and unnecessary except for very
-    high volumes.
-    """
-
     timestamp: datetime
     payee: str
     description: str
     amount: Decimal
+    balance: Decimal
     currency: str
-    credit_account: str
-    debit_account: str
+    account: str
     institution: str
+
+
+@dataclass
+class JournalEntry:
+    timestamp: datetime
+    narration: str
+    transactions: list[GenericTransaction]
 
 
 @dataclass
@@ -33,6 +36,6 @@ class CathayTransaction(AbstractTransaction):
     description: str
     withdraw: Decimal
     deposit: Decimal
-    # balance: Decimal - but this isn't very useful data
+    balance: Decimal
     transaction_data: str
     notes: str

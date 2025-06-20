@@ -10,19 +10,31 @@ from decimal import Decimal
 from enum import StrEnum
 from pathlib import Path
 from time import strftime
-from typing import Callable, Literal, TextIO
-from metamoney.importers import get_importer, CathayCsvImporter
-from metamoney.models.data_sources import DataSource, DataSourceFormat, DataSourceInstitution
-from metamoney.utils import pascal_to_snake
-from metamoney.models.config import StreamInfo
-from metamoney.models.transactions import GenericTransaction, CathayTransaction
-from metamoney.models.mappings import Mapping
-from typing import Sequence
+from typing import Callable, Literal, Sequence, TextIO
 
 import click
 import yaml
 
+from metamoney.exporters import BeancountExporter, get_exporter
+from metamoney.importers import CathayCsvImporter, get_importer
+from metamoney.mappers.mapper import FallbackMapper
+from metamoney.models.config import StreamInfo
+from metamoney.models.data_sources import (
+    DataSource,
+    DataSourceFormat,
+    DataSourceInstitution,
+)
+from metamoney.models.exports import ExportFormat
+from metamoney.models.mappings import Mapping
+from metamoney.models.transactions import (
+    CathayTransaction,
+    GenericTransaction,
+    JournalEntry,
+)
+from metamoney.utils import pascal_to_snake
+
 logging.basicConfig(level=logging.DEBUG)
+
 
 def initialize_logger(verbose: bool, quiet: bool) -> logging.Logger:
     if verbose and quiet:
@@ -68,25 +80,6 @@ def close_streams(input_stream: StreamInfo, output_stream: StreamInfo):
     if output_stream != sys.stdout:
         output_stream.stream.close()
 
-def write_one_generic_to_beancount(
-    logger: logging.Logger, output_stream: StreamInfo, transaction: GenericTransaction
-):
-    output_stream.stream.writelines(
-        (
-            f"{transaction.timestamp.strftime('%Y-%m-%d')} * \"{transaction.payee}\" \"{transaction.description}\"\n",
-            f"\t{transaction.credit_account} {transaction.amount} {transaction.currency}\n",
-            f"\t{transaction.debit_account} {-transaction.amount} {transaction.currency}\n\n",
-        )
-    )
-
-
-def write_generic_to_beancount(
-    logger: logging.Logger,
-    output_stream: StreamInfo,
-    transactions: list[GenericTransaction],
-):
-    for transaction in transactions:
-        write_one_generic_to_beancount(logger, output_stream, transaction)
 
 def load_map(logger: logging.Logger, path: Path) -> dict[str, list[Mapping]]:
     output_map: dict[str, list[Mapping]] = {}
@@ -177,29 +170,44 @@ def process_map(
 def metamoney():
     pass
 
+
 @metamoney.command()
 # this should be sourced from the names set in the importers
-@click.option("--institution", type=click.Choice(list(DataSourceInstitution)), required=True, help="The institution that you want to import data from.")
+@click.option(
+    "--institution",
+    type=click.Choice(list(DataSourceInstitution)),
+    required=True,
+    help="The institution that you want to import data from.",
+)
 # either stdin, remote, or file path
-@click.option("--source", type=str, required=True, help="The data source to import from. Valid choices are stdin, remote, or a file path.")
+@click.option(
+    "--source",
+    type=str,
+    required=True,
+    help="The data source to import from. Valid choices are stdin, remote, or a file path.",
+)
 # no default, because we will infer it from the source and/or institution
-@click.option("--input-format","input_format", type=click.Choice(list(DataSourceFormat)))
+@click.option(
+    "--input-format", "input_format", type=click.Choice(list(DataSourceFormat))
+)
 @click.option("--output-format", type=click.Choice(("beancount",)))
 def transactions(
     institution: DataSourceInstitution,
     source: str,
     input_format: DataSourceFormat | None,
-    output_format: str | None
+    output_format: str | None,
 ):
 
+    # lock these until we have a scheme for inference
     input_type = DataSourceFormat.CSV
+    output_type = ExportFormat.BEANCOUNT
+    output_stream = StreamInfo(sys.stdout, "stdout")
 
     importer = get_importer(institution, input_type)
 
     generic_transactions: Sequence[GenericTransaction]
 
     if source == "remote":
-        raise NotImplementedError() 
         data_source = importer.retrieve()
     elif source == "stdin":
         stream = StreamInfo(sys.stdin, "stdin")
@@ -209,80 +217,19 @@ def transactions(
         if not (source_as_path.exists() and source_as_path.is_file()):
             print("--source must be 'remote', 'stdin', or a valid path to a file.")
             exit(1)
-        stream = StreamInfo(
-            source_as_path.open(),
-            str(source_as_path.resolve())
-        )
+        stream = StreamInfo(source_as_path.open(), str(source_as_path.resolve()))
         data_source = DataSource(institution, input_type, stream)
 
-    institution_transactions = importer.extract(data_source) 
+    institution_transactions = importer.extract(data_source)
     generic_transactions = importer.transform(institution_transactions)
-    print(generic_transactions)
-    # print(data_source.stream.stream.read())
 
-# @click.command
-# @click.option("--input-path", "-i", type=Path) # this doesn't need to be a path
-# @click.option("--output-path", "-o", type=Path)
-# @click.option("--institution", "-I", type=click.Choice(["cathay"]), required=True)
-# @click.option("--input-format", default="csv")
-# @click.option("--output-format", default="beancount")
-# @click.option("--quiet", "-q", count=True)
-# @click.option("--verbose", "-v", count=True)
-# @click.option("--overwrite", "-w", is_flag=True, default=False)
-# @click.option("--map-path", "-m", type=Path)
-# @click.option("--dry-run", is_flag=True, default=False)
-# def main(
-#     input_path: Path | None,
-#     output_path: Path | None,
-#     institution: Literal["cathay_tw"],
-#     input_format: Literal["csv"],
-#     output_format: Literal["beancount"],
-#     verbose: int,
-#     quiet: int,
-#     overwrite: bool,
-#     map_path: Path | None,
-#     dry_run: bool,
-# ):
-#
-#     logger = initialize_logger(verbose > 0, quiet > 0)
-#     input_stream, output_stream = initialize_streams(input_path, output_path, overwrite)
-#
-#     importer = get_importer(DataSourceInstitution(institution))
-#
-#     # if not check_input_format(input_formats, institution, input_format):
-#     #     logger.error(
-#     #         f"No importer exists for institution {institution} and input format {input_format}"
-#     #     )
-#     #     sys.exit(1)
-#
-#     logger.debug(f"Converting from {input_stream.name} to {output_stream.name}.")
-#
-#     generic_transactions = importer.ingest()
-#
-#     # transactions = input_formats[institution][input_format](logger, input_stream)
-#     #
-#     # generic_transactions = convert_to_generic[institution](logger, transactions)
-#     #
-#     # generic_transactions = sorted(generic_transactions, key=lambda t: t.timestamp)
-#
-#     # post-processing steps
-#
-#     # sort
-#
-#     # needs something like a PostProcessingWorkflow object
-#     # remap
-#     if map_path is not None:
-#         map_data = load_map(logger, map_path)
-#         logger.debug(map_data)
-#         generic_transactions = process_map(logger, map_data, generic_transactions)
-#
-#     # logger.debug(generic_transactions)
-#
-#     # needs exporter object
-#     if not dry_run:
-#         write_generic_to_beancount(logger, output_stream, generic_transactions)
-#
-#     close_streams(input_stream, output_stream)
+    # TODO: Make this a proper workflow which calls multiple mappers
+    mapper = FallbackMapper()
+    entries: Sequence[JournalEntry] = mapper.map(generic_transactions)
+
+    exporter = get_exporter(output_type)
+    exporter.export(output_stream, entries)
+    # print(data_source.stream.stream.read())
 
 
 if __name__ == "__main__":

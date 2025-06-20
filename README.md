@@ -2,7 +2,7 @@
 
 ## Commands
 
-Commands should be based on the _output_ rather than a _verb_ i.e. this is a
+Commands are based on the _output_ rather than a _verb_ i.e. this is a
 declarative system.
 
 ```sh
@@ -22,3 +22,31 @@ metamoney transactions --institution cathay_tw --output 20250617-cathay.beancoun
 --input-format csv
 --output-format beancount
 ```
+
+## Configuration
+
+Metamoney has 3 configuration files:
+
+- `accounts.yml`
+- `map.yml`
+- `config.yml`
+
+By default, they are stored in the `$HOME/.metamoney` folder. **Only config.yml
+is safe to commit to version control.** `accounts.yml` contains information
+about accounts and may contain credentials. `map.yml` contains information about
+institutions and may tell people something about your spending habits.
+
+## Versioning
+
+Metamoney uses a short SemVer scheme: `VERSION.BUILD`. Build is iterated
+automatically for every commit on main, while `VERSION` is manually updated.
+
+When `VERSION` is updated, `BUILD` will be reset to `1`. Before reaching MVP,
+`VERSION` will be set to `0`. `VERSION` is expected to be incremented when a new
+user-facing feature is released.
+
+No distinction is drawn between major, minor, and patch releases, because the
+intention is to enable rapid iteration by automating publication and testing.
+
+No particular promises are made about the stability or compatibility of any
+version.
