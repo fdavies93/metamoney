@@ -15,13 +15,21 @@ import click
 from metamoney import utils
 from metamoney.exporters import BeancountExporter, get_exporter
 from metamoney.importers import CathayCsvImporter, get_importer
-from metamoney.mappers.mapper import (AddCounterTransactionRemap, AllCondition,
-                                      GeneralMapper, InitialMapper, Mapping,
-                                      SetNarrationRemap,
-                                      TransactionFieldMatchesCondition)
+from metamoney.mappers.mapper import (
+    AddCounterTransactionRemap,
+    AllCondition,
+    GeneralMapper,
+    InitialMapper,
+    Mapping,
+    SetNarrationRemap,
+    TransactionFieldMatchesCondition,
+)
 from metamoney.models.config import StreamInfo
-from metamoney.models.data_sources import (DataSource, DataSourceFormat,
-                                           DataSourceInstitution)
+from metamoney.models.data_sources import (
+    DataSource,
+    DataSourceFormat,
+    DataSourceInstitution,
+)
 from metamoney.models.exports import ExportFormat
 from metamoney.models.transactions import GenericTransaction, JournalEntry
 
@@ -112,27 +120,8 @@ def transactions(
 
     # TODO: Add a filter option for dates
 
-<<<<<<< HEAD
-    # post-processing steps
-
-    # sort
-
-    # remap
-    if map_path is not None:
-        map_data = load_map(logger, map_path)
-        logger.debug(map_data)
-        generic_transactions = process_map(logger, map_data, generic_transactions)
-
-    # logger.debug(generic_transactions)
-
-    if not dry_run:
-        output_formats[output_format](logger, output_stream, generic_transactions)
-
-    close_streams(input_stream, output_stream)
-=======
     exporter = get_exporter(output_type)
     exporter.export(output_stream, entries)
->>>>>>> refactor
 
 
 if __name__ == "__main__":
