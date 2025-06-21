@@ -28,7 +28,7 @@ def AllCondition(
 def AnyCondition(
     *args: Callable[[JournalEntry], bool]
 ) -> Callable[[JournalEntry], bool]:
-    # i.e. execute all of them with the entry provided, check that all return true
+    # i.e. execute all of them with the entry provided, check that at least one returns true
     return lambda e: any(map(lambda c: c(e), args))
 
 

@@ -114,7 +114,7 @@ def transactions(
     mappings = []
 
     spec = importlib.util.spec_from_file_location(
-        "user_mappings", pathlib.Path.home() / ".metamoney/mappings.py"
+        "config", pathlib.Path.home() / ".metamoney/config.py"
     )
     if spec is not None and spec.loader is not None:
         mod = importlib.util.module_from_spec(spec)

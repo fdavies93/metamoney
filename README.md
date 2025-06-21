@@ -25,28 +25,40 @@ metamoney transactions --institution cathay_tw --output 20250617-cathay.beancoun
 
 ## Configuration
 
-Metamoney has 3 configuration files:
+Metamoney is configured by dynamically importing the script `config.py` from
+`$HOME/.metamoney/config.py` (if it exists).
 
-- `accounts.yml`
-- `map.yml`
-- `config.yml`
+In `config.py` you can set up your variables however you like. This means, for
+example, that you can load credentials from a local plain-text file, from an ENV
+variable, or even from a secrets manager or keychain.
 
-By default, they are stored in the `$HOME/.metamoney` folder. **Only config.yml
-is safe to commit to version control.** `accounts.yml` contains information
-about accounts and may contain credentials. `map.yml` contains information about
-institutions and may tell people something about your spending habits.
+Since `config.py` will usually contain sensitive information, we recommend NOT
+committing it to version control unless you know what you're doing and have
+taken steps to hide secrets like financial account details. Instead, consider
+using an encrypted backup solution such as [restic](https://restic.net/) or
+[borg](https://www.borgbackup.org).
 
-## Versioning
+For more information on the config variables exported to metamoney, see
+[config documentation](./docs/configuration.md).
 
-Metamoney uses a short SemVer scheme: `VERSION.BUILD`. Build is iterated
-automatically for every commit on main, while `VERSION` is manually updated.
+## Technical Information
 
-When `VERSION` is updated, `BUILD` will be reset to `1`. Before reaching MVP,
-`VERSION` will be set to `0`. `VERSION` is expected to be incremented when a new
-user-facing feature is released.
+### Versioning
 
-No distinction is drawn between major, minor, and patch releases, because the
-intention is to enable rapid iteration by automating publication and testing.
+Metamoney uses a short CalVer scheme: `YEAR.SERIAL`
+
+When `YEAR` is updated, `SERIAL` will be reset to `0`. Before reaching MVP,
+`YEAR` will be set to `0`. `SERIAL` is expected to be incremented when a new
+user-facing feature is released. No distinction is drawn between major, minor,
+and patch releases.
 
 No particular promises are made about the stability or compatibility of any
-version.
+version, except that we hope that stability improves over time. If you want to
+guarantee stable behaviour, consider using a fixed version in your package
+manager. On the other hand, if you want rolling releases, consider installing
+this package directly from the git repository.
+
+### License
+
+Metamoney is released under
+[AGPLv3](https://www.gnu.org/licenses/agpl-3.0.en.html).
