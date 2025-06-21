@@ -19,8 +19,6 @@ class BeancountExporter(AbstractExporter):
             line = (
                 f"\t{transaction.account} {transaction.amount} {transaction.currency}"
             )
-            if transaction.balance is not None:
-                line += f" = {transaction.balance} {transaction.currency}"
             lines.append(line)
         lines.append("\n")
 
