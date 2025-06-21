@@ -12,6 +12,7 @@ from uuid import uuid4
 
 import click
 
+from metamoney import utils
 from metamoney.exporters import BeancountExporter, get_exporter
 from metamoney.importers import CathayCsvImporter, get_importer
 from metamoney.mappers.mapper import (
@@ -111,18 +112,11 @@ def transactions(
     entries: Sequence[JournalEntry] = initial_mapper.map(generic_transactions, [])
 
     # TODO: Make this less fragile
-    mappings = []
-
-    spec = importlib.util.spec_from_file_location(
-        "config", pathlib.Path.home() / ".metamoney/config.py"
-    )
-    if spec is not None and spec.loader is not None:
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
-        mappings = mod.mappings
-
-    general_mapper = GeneralMapper(mappings)
-    entries = general_mapper.map(generic_transactions, entries)
+    config = utils.get_config_module()
+    if config:
+        mappings = config.mappings
+        general_mapper = GeneralMapper(mappings)
+        entries = general_mapper.map(generic_transactions, entries)
 
     # TODO: Add a filter option for dates
 

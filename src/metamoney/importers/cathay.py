@@ -4,7 +4,10 @@ import sys
 import uuid
 from datetime import datetime
 from decimal import Decimal
+from pathlib import Path
 from typing import Sequence
+
+from playwright.sync_api import sync_playwright
 
 from metamoney.importers.importer import AbstractImporter
 from metamoney.models.config import StreamInfo
@@ -14,6 +17,7 @@ from metamoney.models.data_sources import (
     DataSourceInstitution,
 )
 from metamoney.models.transactions import CathayTransaction, GenericTransaction
+from metamoney.utils import get_config_module
 
 
 def get_importer(format: DataSourceFormat):
@@ -113,8 +117,75 @@ class CathayCsvImporter(AbstractImporter[CathayTransaction]):
             generics.append(self.convert_one_cathay_to_generic(transaction))
         return generics[::-1]
 
+    def scrape_cathay(self):
+        config = get_config_module()
+        if not (config and config.download_root):
+            raise ValueError("No download root found in config.")
+        download_root = config.download_root
+        if not (
+            config
+            and config.accounts
+            and config.accounts.get(DataSourceInstitution.CATHAY_BANK_TW)
+        ):
+            raise ValueError("Couldn't find account information for Cathay Bank")
+        account_info: dict[str, str] = config.accounts.get(
+            DataSourceInstitution.CATHAY_BANK_TW
+        )
+
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=False)
+            page = browser.new_page()
+            page.goto("https://www.cathaybk.com.tw/mybank")
+            page.goto(
+                "https://www.cathaybk.com.tw/mybank/quicklinks/home/setmultilanguage?Culture=en-US"
+            )
+
+            page.get_by_label("ID Number").fill(account_info["id_number"])
+            page.get_by_label("Username").fill(account_info["username"])
+            page.get_by_label("Password", exact=True).fill(account_info["password"])
+
+            page.get_by_role("button", name="Login").click()
+
+            # <div class="btn-count-down btn  btn-size-md m-btn-height-sm sent-code-btn  " id="js-otp-send" data-btn-word="Send">
+            #     <div class="btn-count-down-bar" style="width: 90%; display: none;">
+            #     </div>
+            # </div>
+
+            page.locator("#js-otp-send").click()
+            # click button "Send"
+            # fill out OTP
+            otp = input("Please enter OTP from SMS: ")
+            # <input class="has-prefix-code" name="OtpPassword" id="OtpPassword" value="" required="" maxlength="6" tabindex="1" autocomplete="off" data-valid="OtpPassword" pattern="[0-9]*" oninput="NumberFilter(this.value,'OtpPassword')" type="text" placeholder="last 6 numbers">
+            page.get_by_placeholder("last 6 numbers").fill(otp)
+
+            # click Submit
+            page.get_by_role("button", name="OK").click()
+            page.get_by_role("button", name="暫時不用").click()
+            page.get_by_role("link", name=account_info["account_no"]).click()
+
+            page.get_by_role("button", name="Print/Download").click()
+
+            with page.expect_download() as download_info:
+                page.get_by_role("menuitem", name="Download CSV").click()
+            download = download_info.value
+
+            ts = datetime.now()
+            filename = ts.strftime(
+                f"%Y-%m-%d-%H%M%S-cathay-{account_info["account_no"]}.csv"
+            )
+            file_path = f"{download_root}/{filename}"
+
+            download.save_as(file_path)
+
+            return file_path
+
     def retrieve(self) -> DataSource:
-        raise NotImplementedError()
+        file_path = self.scrape_cathay()
+        return DataSource(
+            DataSourceInstitution.CATHAY_BANK_TW,
+            DataSourceFormat.CSV,
+            StreamInfo(Path(file_path).open(), file_path),
+        )
 
     def extract(self, data_source: DataSource) -> list[CathayTransaction]:
         return self.read_cathay_csv(data_source.stream)
