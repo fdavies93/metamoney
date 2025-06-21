@@ -2,6 +2,7 @@ from abc import ABC
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
+from typing import Optional
 
 
 class AbstractTransaction(ABC):
@@ -14,13 +15,13 @@ class AbstractTransaction(ABC):
 class GenericTransaction(AbstractTransaction):
     transaction_id: str
     timestamp: datetime
-    payee: str
-    description: str
+    payee: Optional[str]
+    description: Optional[str]
     amount: Decimal
-    balance: Decimal
+    balance: Optional[Decimal]
     currency: str
     account: str
-    institution: str
+    institution: Optional[str]
 
 
 @dataclass

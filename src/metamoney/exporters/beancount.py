@@ -16,9 +16,12 @@ class BeancountExporter(AbstractExporter):
         lines = [head]
 
         for transaction in entry.transactions:
-            lines.append(
-                f"\t{transaction.account} {transaction.amount} {transaction.currency} = {transaction.balance} {transaction.currency}"
+            line = (
+                f"\t{transaction.account} {transaction.amount} {transaction.currency}"
             )
+            if transaction.balance is not None:
+                line += f" = {transaction.balance} {transaction.currency}"
+            lines.append(line)
         lines.append("\n")
 
         print("\n".join(lines), file=output_stream.stream)
