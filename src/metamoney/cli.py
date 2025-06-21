@@ -1,20 +1,16 @@
 import csv
+import importlib
+import importlib.util
 import logging
+import pathlib
 import re
 import sys
-from abc import ABC
-from copy import deepcopy
-from dataclasses import dataclass
-from datetime import date, datetime
-from decimal import Decimal
-from enum import StrEnum
 from pathlib import Path
 from time import strftime
 from typing import Callable, Literal, Sequence, TextIO
 from uuid import uuid4
 
 import click
-import yaml
 
 from metamoney.exporters import BeancountExporter, get_exporter
 from metamoney.importers import CathayCsvImporter, get_importer
@@ -34,12 +30,7 @@ from metamoney.models.data_sources import (
     DataSourceInstitution,
 )
 from metamoney.models.exports import ExportFormat
-from metamoney.models.transactions import (
-    CathayTransaction,
-    GenericTransaction,
-    JournalEntry,
-)
-from metamoney.utils import pascal_to_snake
+from metamoney.models.transactions import GenericTransaction, JournalEntry
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -119,21 +110,18 @@ def transactions(
     initial_mapper = InitialMapper()
     entries: Sequence[JournalEntry] = initial_mapper.map(generic_transactions, [])
 
-    # TODO: Figure out whether a dynamic Python mapper might be better - yes,
-    # for sure, it lets you do stuff with arguments for free.
+    # TODO: Make this less fragile
+    mappings = []
 
-    my_mapping = Mapping(
-        AllCondition(
-            TransactionFieldMatchesCondition("account", "^Assets.*"),
-            TransactionFieldMatchesCondition("payee", "AGODA.COM"),
-        ),
-        (
-            AddCounterTransactionRemap("Expenses:Living:Hotel"),
-            SetNarrationRemap("Agoda"),
-        ),
+    spec = importlib.util.spec_from_file_location(
+        "user_mappings", pathlib.Path.home() / ".metamoney/mappings.py"
     )
+    if spec is not None and spec.loader is not None:
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        mappings = mod.mappings
 
-    general_mapper = GeneralMapper([my_mapping])
+    general_mapper = GeneralMapper(mappings)
     entries = general_mapper.map(generic_transactions, entries)
 
     # TODO: Add a filter option for dates
