@@ -1,6 +1,7 @@
 import csv
 import logging
 import sys
+import uuid
 from datetime import datetime
 from decimal import Decimal
 from typing import Sequence
@@ -48,6 +49,7 @@ class CathayCsvImporter(AbstractImporter[CathayTransaction]):
         transaction_data = row[6]
         notes = row[7].strip()
         return CathayTransaction(
+            uuid.uuid4().hex,
             transaction_date,
             billing_date,
             description,
@@ -88,9 +90,10 @@ class CathayCsvImporter(AbstractImporter[CathayTransaction]):
             amount = Decimal(0)
 
         generic = GenericTransaction(
+            transaction_id=transaction.transaction_id,
             timestamp=transaction.transaction_date,
             payee=transaction.notes,
-            description=transaction.description,
+            description=f"{transaction.notes} {transaction.description}",
             amount=amount,
             balance=transaction.balance,
             currency="NTD",

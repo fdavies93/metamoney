@@ -17,7 +17,7 @@ class BeancountExporter(AbstractExporter):
 
         for transaction in entry.transactions:
             lines.append(
-                f"\t{transaction.account} {transaction.amount} {transaction.currency}"
+                f"\t{transaction.account} {transaction.amount} {transaction.currency} = {transaction.balance} {transaction.currency}"
             )
         lines.append("\n")
 

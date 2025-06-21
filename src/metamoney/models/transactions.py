@@ -12,6 +12,7 @@ class AbstractTransaction(ABC):
 # for recording the relationship between two transactions
 @dataclass
 class GenericTransaction(AbstractTransaction):
+    transaction_id: str
     timestamp: datetime
     payee: str
     description: str
@@ -31,6 +32,7 @@ class JournalEntry:
 
 @dataclass
 class CathayTransaction(AbstractTransaction):
+    transaction_id: str
     transaction_date: datetime
     billing_date: datetime
     description: str
