@@ -154,7 +154,8 @@ class CathayCsvImporter(AbstractImporter[CathayTransaction]):
             page.locator("#js-otp-send").click()
             # click button "Send"
             # fill out OTP
-            otp = input("Please enter OTP from SMS: ")
+            print("Please enter OTP from SMS:", file=sys.stderr)
+            otp = input()
             # <input class="has-prefix-code" name="OtpPassword" id="OtpPassword" value="" required="" maxlength="6" tabindex="1" autocomplete="off" data-valid="OtpPassword" pattern="[0-9]*" oninput="NumberFilter(this.value,'OtpPassword')" type="text" placeholder="last 6 numbers">
             page.get_by_placeholder("last 6 numbers").fill(otp)
 
