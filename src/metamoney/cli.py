@@ -1,13 +1,15 @@
+from enum import StrEnum
 import logging
 import sys
 from pathlib import Path
-from typing import Sequence
+from typing import Iterable, Sequence
 
 import click
 
 from metamoney import utils
 from metamoney.exporters import BeancountExporter, get_exporter
 from metamoney.importers import CathayCsvImporter, get_importer
+from metamoney.importers.importer import AbstractImporter
 from metamoney.registry import importers
 from metamoney.mappers.mapper import (
     GeneralMapper,
@@ -65,12 +67,13 @@ def metamoney():
 )
 @click.option("--output-format", type=click.Choice(("beancount",)))
 def transactions(
-    institution: DataSourceInstitution,
+    institution: str,
     source: str,
-    input_format: DataSourceFormat | None,
+    input_format: str | None,
     output_format: str | None,
 ):
 
+    config = utils.get_config_module()
     # lock these until we have a scheme for inference
     input_type = DataSourceFormat.CSV
     output_type = ExportFormat.BEANCOUNT
@@ -81,6 +84,14 @@ def transactions(
     ]
     for file_importer in file_importers:
         importers.register(file_importer)
+
+    if config and isinstance(config.importers, Iterable):
+        for file_importer in config.importers:
+            if isinstance(file_importer, AbstractImporter):
+                existing_importer = get_importer(file_importer.data_institution(), file_importer.data_format())
+                if existing_importer:
+                    importers.unregister(existing_importer.__class__)
+                importers.register(file_importer)
 
     importer = get_importer(institution, input_type)
 
@@ -107,7 +118,6 @@ def transactions(
     entries: Sequence[JournalEntry] = initial_mapper.map(generic_transactions, [])
 
     # TODO: Make this less fragile
-    config = utils.get_config_module()
     if config:
         mappings = config.mappings
         general_mapper = GeneralMapper(mappings)

@@ -11,6 +11,6 @@ class DataSourceFormat(StrEnum):
 
 @dataclass
 class DataSource:
-    institution: DataSourceInstitution
-    format: DataSourceFormat
+    institution: str
+    format: str
     stream: StreamInfo

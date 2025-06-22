@@ -9,8 +9,6 @@ class AbstractTransaction(ABC):
     pass
 
 
-# TODO: Simplify the Transaction class and add a JournalEntry class
-# for recording the relationship between two transactions
 @dataclass
 class GenericTransaction(AbstractTransaction):
     transaction_id: str

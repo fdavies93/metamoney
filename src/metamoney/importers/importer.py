@@ -1,9 +1,8 @@
 from abc import ABC, abstractmethod
 
-from metamoney.models.config import AppConfig
-from metamoney.models.data_sources import DataSource, DataSourceFormat, DataSourceInstitution
-from metamoney.models.transactions import AbstractTransaction, GenericTransaction
-from typing import Iterable, Sequence, Generic, TypeVar
+from metamoney.models.data_sources import DataSource
+from metamoney.models.transactions import GenericTransaction
+from typing import Sequence, Generic, TypeVar
 
 T = TypeVar("T")
 
@@ -11,12 +10,12 @@ class AbstractImporter(ABC, Generic[T]):
 
     @staticmethod
     @abstractmethod
-    def data_format() -> DataSourceFormat:
+    def data_format() -> str:
         pass
 
     @staticmethod
     @abstractmethod
-    def data_institution() -> DataSourceInstitution:
+    def data_institution() -> str:
         pass
 
     @abstractmethod

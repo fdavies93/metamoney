@@ -18,9 +18,9 @@ class Registry[T]():
     def filter_services(self, filter_fn: Callable[[T],bool]) -> Sequence[T]:
         return list(filter(filter_fn, self.services.values()))
 
-    def unregister(self, class_name: str):
+    def unregister(self, service_type: type):
         # May crash if service doesn't exist, but that's probably fine
-        del self.services[class_name]
+        del self.services[service_type]
 
 importers = Registry[AbstractImporter]()
 exporters = Registry[AbstractExporter]()
