@@ -19,12 +19,6 @@ from metamoney.models.data_sources import (
 from metamoney.models.transactions import CathayTransaction, GenericTransaction
 from metamoney.utils import get_config_module
 
-def get_importer(format: DataSourceFormat):
-    match format:
-        case DataSourceFormat.CSV:
-            return CathayCsvImporter()
-    raise ValueError()
-
 
 def clean_number_string(num_string: str) -> Decimal:
     # Use the character code for − because it is NOT an ASCII dash
@@ -37,7 +31,7 @@ def clean_number_string(num_string: str) -> Decimal:
 
 class CathayCsvImporter(AbstractImporter[CathayTransaction]):
     logger = logging.getLogger("CathayCsvImporter")
- 
+
     @staticmethod
     def data_format() -> DataSourceFormat:
         return DataSourceFormat.CSV

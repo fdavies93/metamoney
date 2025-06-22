@@ -1,6 +1,6 @@
-from enum import StrEnum
 import logging
 import sys
+from enum import StrEnum
 from pathlib import Path
 from typing import Iterable, Sequence
 
@@ -10,11 +10,7 @@ from metamoney import utils
 from metamoney.exporters import BeancountExporter, get_exporter
 from metamoney.importers import CathayCsvImporter, get_importer
 from metamoney.importers.importer import AbstractImporter
-from metamoney.registry import importers
-from metamoney.mappers.mapper import (
-    GeneralMapper,
-    InitialMapper,
-)
+from metamoney.mappers.mapper import GeneralMapper, InitialMapper
 from metamoney.models.config import StreamInfo
 from metamoney.models.data_sources import (
     DataSource,
@@ -23,6 +19,7 @@ from metamoney.models.data_sources import (
 )
 from metamoney.models.exports import ExportFormat
 from metamoney.models.transactions import GenericTransaction, JournalEntry
+from metamoney.registry import importers
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -50,7 +47,7 @@ def metamoney():
 # this should be sourced from the names set in the importers
 @click.option(
     "--institution",
-    type=click.Choice(list(DataSourceInstitution)),
+    type=str,
     required=True,
     help="The institution that you want to import data from.",
 )
@@ -62,9 +59,7 @@ def metamoney():
     help="The data source to import from. Valid choices are stdin, remote, or a file path.",
 )
 # no default, because we will infer it from the source and/or institution
-@click.option(
-    "--input-format", "input_format", type=click.Choice(list(DataSourceFormat))
-)
+@click.option("--input-format", "input_format", type=str)
 @click.option("--output-format", type=click.Choice(("beancount",)))
 def transactions(
     institution: str,
@@ -79,21 +74,27 @@ def transactions(
     output_type = ExportFormat.BEANCOUNT
     output_stream = StreamInfo(sys.stdout, "stdout")
 
-    file_importers = [
-        CathayCsvImporter()
-    ]
+    file_importers = [CathayCsvImporter()]
     for file_importer in file_importers:
         importers.register(file_importer)
 
     if config and isinstance(config.importers, Iterable):
         for file_importer in config.importers:
             if isinstance(file_importer, AbstractImporter):
-                existing_importer = get_importer(file_importer.data_institution(), file_importer.data_format())
+                existing_importer = get_importer(
+                    file_importer.data_institution(), file_importer.data_format()
+                )
                 if existing_importer:
                     importers.unregister(existing_importer.__class__)
                 importers.register(file_importer)
 
     importer = get_importer(institution, input_type)
+    if not importer:
+        print(
+            f"Couldn't find an importer for data type {source} and institution {institution}",
+            file=sys.stderr,
+        )
+        exit(1)
 
     generic_transactions: Sequence[GenericTransaction]
 
