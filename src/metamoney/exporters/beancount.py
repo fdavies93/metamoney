@@ -1,5 +1,5 @@
-import sys
-from typing import Sequence
+from typing import Dict, Sequence
+from datetime import datetime
 
 from metamoney.exporters.exporter import AbstractExporter
 from metamoney.models.config import StreamInfo
@@ -29,8 +29,27 @@ class BeancountExporter(AbstractExporter):
         output_stream: StreamInfo,
         journal_entries: Sequence[JournalEntry],
     ):
-        for entry in journal_entries:
+        if len(journal_entries) == 0: return
+
+        cur_date = journal_entries[0].timestamp
+        prev_date = journal_entries[0].timestamp
+
+        for i, entry in enumerate(journal_entries):
+
+            cur_date = entry.timestamp
+
+            if cur_date.day > prev_date.day or cur_date.month > prev_date.month or cur_date.year > prev_date.year:
+
+                balanced_transactions = list(filter(lambda t: t.balance,journal_entries[i-1].transactions))
+
+                lines = list(map(lambda t: f"{cur_date.strftime('%Y-%m-%d')} balance {t.account} {t.balance} {t.currency}", balanced_transactions)) 
+                lines.append("\n")
+
+                print("\n".join(lines), file=output_stream.stream)
+
             self.write_one_generic_to_beancount(output_stream, entry)
+
+            prev_date = cur_date
 
     def export(
         self, output_stream: StreamInfo, journal_entries: Sequence[JournalEntry]
