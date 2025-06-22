@@ -22,7 +22,7 @@ class BeancountExporter(AbstractExporter):
             lines.append(line)
         lines.append("\n")
 
-        print("\n".join(lines), file=output_stream.stream)
+        print("\n".join(lines), file=output_stream.stream, end = "")
 
     def write_generic_to_beancount(
         self,
@@ -45,7 +45,7 @@ class BeancountExporter(AbstractExporter):
                 lines = list(map(lambda t: f"{cur_date.strftime('%Y-%m-%d')} balance {t.account} {t.balance} {t.currency}", balanced_transactions)) 
                 lines.append("\n")
 
-                print("\n".join(lines), file=output_stream.stream)
+                print("\n".join(lines), file=output_stream.stream, end="")
 
             self.write_one_generic_to_beancount(output_stream, entry)
 
