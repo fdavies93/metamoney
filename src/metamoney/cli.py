@@ -1,28 +1,17 @@
-import csv
-import importlib
-import importlib.util
 import logging
-import pathlib
-import re
 import sys
 from pathlib import Path
-from time import strftime
-from typing import Callable, Literal, Sequence, TextIO
-from uuid import uuid4
+from typing import Sequence
 
 import click
 
 from metamoney import utils
 from metamoney.exporters import BeancountExporter, get_exporter
 from metamoney.importers import CathayCsvImporter, get_importer
+from metamoney.registry import importers
 from metamoney.mappers.mapper import (
-    AddCounterTransactionRemap,
-    AllCondition,
     GeneralMapper,
     InitialMapper,
-    Mapping,
-    SetNarrationRemap,
-    TransactionFieldMatchesCondition,
 )
 from metamoney.models.config import StreamInfo
 from metamoney.models.data_sources import (
@@ -86,6 +75,12 @@ def transactions(
     input_type = DataSourceFormat.CSV
     output_type = ExportFormat.BEANCOUNT
     output_stream = StreamInfo(sys.stdout, "stdout")
+
+    file_importers = [
+        CathayCsvImporter()
+    ]
+    for file_importer in file_importers:
+        importers.register(file_importer)
 
     importer = get_importer(institution, input_type)
 
