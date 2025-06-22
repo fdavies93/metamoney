@@ -57,3 +57,16 @@ shortcuts provided they adhere to the same interface as the built-in ones.
 
 See [mapper.py](../src/metamoney/mappers/mapper.py) for all remapping and
 condition shortcuts.
+
+### `importers`
+
+This exports custom importers which can be subclassed from `AbstractImporter`.
+You need to set up the functions `data_source()` and `data_institution()` to
+return information about the institution so that metamoney can find the
+appropriate importer.
+
+Custom importers take precedence over built-in importers if they refer to the
+same institution and file type.
+
+For a more complete reference take a look at
+[importers](../src/metamoney/importers).

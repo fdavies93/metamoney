@@ -68,8 +68,10 @@ def transactions(
     output_format: str | None,
 ):
 
+    # TODO: Centralize initialization code so it can be used for multiple
+    # entrypoints
     config = utils.get_config_module()
-    # lock these until we have a scheme for inference
+    # TODO: Write file type inference function
     input_type = DataSourceFormat.CSV
     output_type = ExportFormat.BEANCOUNT
     output_stream = StreamInfo(sys.stdout, "stdout")
