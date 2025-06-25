@@ -17,7 +17,7 @@ def pascal_to_snake(pascal: str) -> str:
 
 def get_config_module() -> ModuleType | None:
     spec = importlib.util.spec_from_file_location(
-        "config", pathlib.Path.home() / ".metamoney/config.py"
+        "config", pathlib.Path.home() / ".metamoney"
     )
     if spec is not None and spec.loader is not None:
         mod = importlib.util.module_from_spec(spec)

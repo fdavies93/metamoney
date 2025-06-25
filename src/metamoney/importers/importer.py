@@ -1,10 +1,11 @@
 from abc import ABC, abstractmethod
+from typing import Generic, Sequence, TypeVar
 
 from metamoney.models.data_sources import DataSource
 from metamoney.models.transactions import GenericTransaction
-from typing import Sequence, Generic, TypeVar
 
 T = TypeVar("T")
+
 
 class AbstractImporter(ABC, Generic[T]):
 
@@ -27,7 +28,9 @@ class AbstractImporter(ABC, Generic[T]):
         pass
 
     @abstractmethod
-    def transform(self, source_transactions: Sequence[T]) -> Sequence[GenericTransaction]:
+    def transform(
+        self, source_transactions: Sequence[T]
+    ) -> Sequence[GenericTransaction]:
         pass
 
     def ingest(self) -> Sequence[GenericTransaction]:
