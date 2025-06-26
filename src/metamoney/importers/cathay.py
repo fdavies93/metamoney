@@ -10,12 +10,12 @@ from typing import Sequence
 from playwright.sync_api import sync_playwright
 
 from metamoney.importers.importer import AbstractImporter
-from metamoney.models.config import StreamInfo
 from metamoney.models.data_sources import (
     DataSource,
     DataSourceFormat,
     DataSourceInstitution,
 )
+from metamoney.models.stream_info import StreamInfo
 from metamoney.models.transactions import CathayTransaction, GenericTransaction
 from metamoney.utils import get_config_module
 

@@ -1,63 +1,18 @@
 import logging
 import sys
-from enum import StrEnum
 from pathlib import Path
-from typing import Iterable, Sequence
+from typing import Sequence
 
 import click
 
-from metamoney import utils
-from metamoney.exporters import BeancountExporter, get_exporter
-from metamoney.importers import CathayCsvImporter, get_importer
-from metamoney.importers.importer import AbstractImporter
-from metamoney.mappers.mapper import GeneralMapper, InitialMapper, Mapping
-from metamoney.models.config import StreamInfo
-from metamoney.models.data_sources import (
-    DataSource,
-    DataSourceFormat,
-    DataSourceInstitution,
-)
+from metamoney.mappers.mapper import GeneralMapper, InitialMapper
+from metamoney.models.app_data import AppData
+from metamoney.models.data_sources import DataSource, DataSourceFormat
 from metamoney.models.exports import ExportFormat
+from metamoney.models.stream_info import StreamInfo
 from metamoney.models.transactions import GenericTransaction, JournalEntry
-from metamoney.registry import importers
 
 logging.basicConfig(level=logging.DEBUG)
-
-
-class AppData:
-    def __init__(self):
-        config = utils.get_config_module()
-        self.config = config
-        self._importer_file_types: list[str] = []
-
-        file_importers = [CathayCsvImporter()]
-        for file_importer in file_importers:
-            importers.register(file_importer)
-            self._importer_file_types.append(file_importer.data_format())
-
-        if config and isinstance(config.importers, Iterable):
-            for file_importer in config.importers:
-                if isinstance(file_importer, AbstractImporter):
-                    existing_importer = get_importer(
-                        file_importer.data_institution(), file_importer.data_format()
-                    )
-                    if existing_importer:
-                        importers.unregister(existing_importer.__class__)
-                    importers.register(file_importer)
-
-        self.output_stream = StreamInfo(sys.stdout, "stdout")
-
-    @property
-    def importer_file_types(self) -> Sequence[str]:
-        return self._importer_file_types
-
-    @property
-    def mappings(self) -> Sequence[Mapping]:
-        mappings = []
-        if not self.config or not self.config.mappings:
-            return mappings
-        mappings.extend(self.config.mappings)
-        return mappings
 
 
 app_data = AppData()
@@ -101,7 +56,7 @@ def metamoney():
 @click.option(
     "--input-format", "input_format", type=click.Choice(app_data.importer_file_types)
 )
-@click.option("--output-format", type=click.Choice(("beancount",)))
+@click.option("--output-format", type=click.Choice(app_data.exporter_file_types))
 def transactions(
     institution: str,
     source: str,
@@ -112,10 +67,18 @@ def transactions(
     input_type = DataSourceFormat.CSV
     output_type = ExportFormat.BEANCOUNT
 
-    importer = get_importer(institution, input_type)
+    importer = app_data.get_importer(institution, input_type)
     if not importer:
         print(
-            f"Couldn't find an importer for data type {source} and institution {institution}",
+            f"Couldn't find an importer for data type {input_type} and institution {institution}",
+            file=sys.stderr,
+        )
+        exit(1)
+
+    exporter = app_data.get_exporter(output_type)
+    if not exporter:
+        print(
+            f"Couldn't find an exporter for data type {output_type}",
             file=sys.stderr,
         )
         exit(1)
@@ -142,16 +105,11 @@ def transactions(
     initial_mapper = InitialMapper()
     entries: Sequence[JournalEntry] = initial_mapper.map(generic_transactions, [])
 
-    # TODO: Make this less fragile
-    if config:
-        mappings = config.mappings
-        general_mapper = GeneralMapper(mappings)
-        entries = general_mapper.map(generic_transactions, entries)
+    general_mapper = GeneralMapper(app_data.mappings)
+    entries = general_mapper.map(generic_transactions, entries)
 
     # TODO: Add a filter option for dates
 
-    # TODO: Make exporters loadable from config
-    exporter = get_exporter(output_type)
     exporter.export(app_data.output_stream, entries)
 
 
