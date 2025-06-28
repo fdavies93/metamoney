@@ -1,5 +1,6 @@
 import importlib.util
 import pathlib
+import sys
 from types import ModuleType
 
 
@@ -17,10 +18,11 @@ def pascal_to_snake(pascal: str) -> str:
 
 def get_config_module() -> ModuleType | None:
     spec = importlib.util.spec_from_file_location(
-        "config", pathlib.Path.home() / ".metamoney"
+        "config", pathlib.Path.home() / ".metamoney" / "__init__.py"
     )
-    if spec is not None and spec.loader is not None:
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
-        return mod
+    if spec and spec.loader:
+        config = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = config
+        spec.loader.exec_module(config)
+        return config
     return None

@@ -2,7 +2,6 @@ import sys
 from dataclasses import dataclass
 from typing import Iterable, Sequence, TextIO
 
-from metamoney import utils
 from metamoney.exporters import BeancountExporter
 from metamoney.exporters.exporter import AbstractExporter
 from metamoney.importers import CathayCsvImporter
@@ -10,13 +9,15 @@ from metamoney.importers.importer import AbstractImporter
 from metamoney.mappers.mapper import Mapping
 from metamoney.models.stream_info import StreamInfo
 from metamoney.registry import Registry
+from metamoney.utils import get_config_module
 
 
 class AppData:
     def __init__(self):
-        config = utils.get_config_module()
+        config = get_config_module()
         self.config = config
         self._importer_file_types: list[str] = []
+        self._importer_institutions: list[str] = []
         self._exporter_file_types: list[str] = []
         self.importers = Registry[AbstractImporter]()
         self.exporters = Registry[AbstractExporter]()
@@ -25,6 +26,7 @@ class AppData:
         for file_importer in file_importers:
             self.importers.register(file_importer)
             self._importer_file_types.append(file_importer.data_format())
+            self._importer_institutions.append(file_importer.data_institution())
 
         file_exporters = [BeancountExporter()]
         for file_exporter in file_exporters:
@@ -77,6 +79,10 @@ class AppData:
     @property
     def importer_file_types(self) -> Sequence[str]:
         return self._importer_file_types
+
+    @property
+    def importer_institutions(self) -> Sequence[str]:
+        return self._importer_institutions
 
     @property
     def exporter_file_types(self) -> Sequence[str]:

@@ -41,7 +41,7 @@ def metamoney():
 # this should be sourced from the names set in the importers
 @click.option(
     "--institution",
-    type=str,
+    type=click.Choice(app_data.importer_institutions),
     required=True,
     help="The institution that you want to import data from.",
 )
@@ -54,18 +54,29 @@ def metamoney():
 )
 # no default, because we will infer it from the source and/or institution
 @click.option(
-    "--input-format", "input_format", type=click.Choice(app_data.importer_file_types)
+    "--input-format",
+    "input_format",
+    type=click.Choice(app_data.importer_file_types),
 )
-@click.option("--output-format", type=click.Choice(app_data.exporter_file_types))
+@click.option(
+    "--output-format",
+    type=click.Choice(app_data.exporter_file_types),
+    default=ExportFormat.BEANCOUNT,
+)
 def transactions(
     institution: str,
     source: str,
     input_format: str | None,
-    output_format: str | None,
+    output_format: str,
 ):
-    # TODO: Write file type inference function
-    input_type = DataSourceFormat.CSV
-    output_type = ExportFormat.BEANCOUNT
+    if not input_format and source != "stdin" and source != "remote":
+        input_type = Path(source).suffix[1:]
+    elif input_format:
+        input_type = input_format
+    else:
+        input_type = DataSourceFormat.CSV
+
+    output_type = output_format
 
     importer = app_data.get_importer(institution, input_type)
     if not importer:
