@@ -12,7 +12,7 @@ from metamoney.models.exports import ExportFormat
 from metamoney.models.stream_info import StreamInfo
 from metamoney.models.transactions import GenericTransaction, JournalEntry
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 
 app_data = AppData()
@@ -36,8 +36,21 @@ def initialize_logger(verbose: bool, quiet: bool) -> logging.Logger:
 def metamoney():
     pass
 
+@metamoney.group(name="list")
+def metamoney_list():
+    pass
 
-@metamoney.command()
+@metamoney_list.command(help="List allowable pairs of institutions and file formats for input.", name="inputs")
+def metamoney_list_inputs():
+    for pair in app_data.importer_pairs:
+        print(pair[0], pair[1])
+
+@metamoney_list.command(help="List allowable file types to export to.", name="outputs")
+def metamoney_list_outputs():
+    for output in app_data.exporter_file_types:
+        print(output)
+
+@metamoney.command(help="Create journal / ledger entries from a data source and export them in a given data format.")
 # this should be sourced from the names set in the importers
 @click.option(
     "--institution",
@@ -57,17 +70,21 @@ def metamoney():
     "--input-format",
     "input_format",
     type=click.Choice(app_data.importer_file_types),
+    help="The format of the data source. Default is CSV if stdin or remote, or inferred from the file path if --source is a path."
 )
 @click.option(
     "--output-format",
     type=click.Choice(app_data.exporter_file_types),
     default=ExportFormat.BEANCOUNT,
+    help="The format to export to."
 )
-def transactions(
+def journal(
     institution: str,
     source: str,
     input_format: str | None,
     output_format: str,
+    verbose: int,
+    quiet: int
 ):
     if not input_format and source != "stdin" and source != "remote":
         input_type = Path(source).suffix[1:]

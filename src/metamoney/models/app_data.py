@@ -1,6 +1,6 @@
 import sys
 from dataclasses import dataclass
-from typing import Iterable, Sequence, TextIO
+from typing import Iterable, Sequence, TextIO, Tuple
 
 from metamoney.exporters import BeancountExporter
 from metamoney.exporters.exporter import AbstractExporter
@@ -83,6 +83,15 @@ class AppData:
     @property
     def importer_institutions(self) -> Sequence[str]:
         return self._importer_institutions
+
+    @property
+    def importer_pairs(self) -> Sequence[Tuple[str, str]]:
+        pairs = []
+        for importer in self.importers.filter_services(lambda _: True):
+            pairs.append(
+                    (importer.data_institution(),importer.data_format())
+            )
+        return pairs
 
     @property
     def exporter_file_types(self) -> Sequence[str]:
