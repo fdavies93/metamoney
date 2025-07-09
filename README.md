@@ -25,8 +25,8 @@ metamoney transactions --institution cathay_tw --output 20250617-cathay.beancoun
 
 ## Configuration
 
-Metamoney is configured by dynamically importing the script `config.py` from
-`$HOME/.metamoney/config.py` (if it exists).
+Metamoney is configured by dynamically importing `$HOME/.metamoney/__init__.py`
+as a Python module (if it exists).
 
 In `config.py` you can set up your variables however you like. This means, for
 example, that you can load credentials from a local plain-text file, from an ENV

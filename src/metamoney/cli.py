@@ -54,6 +54,7 @@ def metamoney_list_outputs():
 # this should be sourced from the names set in the importers
 @click.option(
     "--institution",
+    "-I",
     type=click.Choice(app_data.importer_institutions),
     required=True,
     help="The institution that you want to import data from.",
@@ -61,6 +62,7 @@ def metamoney_list_outputs():
 # either stdin, remote, or file path
 @click.option(
     "--source",
+    "-s",
     type=str,
     required=True,
     help="The data source to import from. Valid choices are stdin, remote, or a file path.",
@@ -68,12 +70,14 @@ def metamoney_list_outputs():
 # no default, because we will infer it from the source and/or institution
 @click.option(
     "--input-format",
+    "-i",
     "input_format",
     type=click.Choice(app_data.importer_file_types),
     help="The format of the data source. Default is CSV if stdin or remote, or inferred from the file path if --source is a path."
 )
 @click.option(
     "--output-format",
+    "-o",
     type=click.Choice(app_data.exporter_file_types),
     default=ExportFormat.BEANCOUNT,
     help="The format to export to."
