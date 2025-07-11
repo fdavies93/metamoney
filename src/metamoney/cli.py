@@ -87,8 +87,6 @@ def journal(
     source: str,
     input_format: str | None,
     output_format: str,
-    verbose: int,
-    quiet: int
 ):
     if not input_format and source != "stdin" and source != "remote":
         input_type = Path(source).suffix[1:]
