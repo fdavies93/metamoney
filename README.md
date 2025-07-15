@@ -10,8 +10,8 @@ v1.0 should replace a number of older tools I've written:
   and automatically generate reports
 - [seneca](https://github.com/fdavies93/seneca) - convert Wise multi-currency
   statements to Beancount format
-- [redbeancount](https://github.com/fdavies93/seneca) - convert several Asian
-  banks' statements to Beancount format
+- [redbeancount](https://github.com/fdavies93/redbeancount) - convert several
+  Asian banks' statements to Beancount format
 
 Therefore the tool must:
 
