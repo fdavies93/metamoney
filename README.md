@@ -1,5 +1,25 @@
 # Metamoney
 
+Metamoney aims to combine numerous personal finance tools into a 'swiss army
+knife' of finance functions, while remaining extensible, scriptable, and
+agnostic about I/O formats.
+
+v1.0 should replace a number of older tools I've written:
+
+- [minibudget](https://github.com/fdavies93/minibudget) - write simple budgets
+  and automatically generate reports
+- [seneca](https://github.com/fdavies93/seneca) - convert Wise multi-currency
+  statements to Beancount format
+- [redbeancount](https://github.com/fdavies93/seneca) - convert several Asian
+  banks' statements to Beancount format
+
+Therefore the tool must:
+
+- Be able to produce projections such as budgets.
+- Handle multi-currency transactions coherently.
+- Allow for I/O in different formats.
+- Let users extend the system with their own I/O formats and institutions.
+
 ## Commands
 
 Commands are based on the _output_ rather than a _verb_ i.e. this is a
