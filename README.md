@@ -1,3 +1,8 @@
+<!-- prettier-ignore -->
+> [!IMPORTANT]
+> The canonical repository for this project is [on Codeberg](https://codeberg.org/fd93/metamoney).
+> Please file any issues at that URL.
+
 # Metamoney
 
 Metamoney aims to combine numerous personal finance tools into a 'swiss army
